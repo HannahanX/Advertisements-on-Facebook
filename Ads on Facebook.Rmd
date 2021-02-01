@@ -1,0 +1,270 @@
+---
+title: "Team9 Social Media"
+output: html_document
+---
+
+```{r}
+getwd()
+data <- read.csv("/Users/gaoziyun/mydictionary/dataset_Facebook_New.csv")
+summary(data)
+View(data)
+str(data)
+data$Category <- as.factor(data$Category)
+data$Post.Month <- as.factor(data$Post.Month)
+data$Post.Weekday <- as.factor(data$Post.Weekday)
+data$Post.Hour <- as.factor(data$Post.Hour)
+data$Paid <- as.factor(data$Paid)
+str(data)
+###The variables in our dataset could be divided into two parts: the variables before posting, like Page.total.likes(numeric), Type(categorical), Category(categorical), Post.Month(categorical), Post.Weekday(categorical), Post.Hour(categorical), Paid(categorical), and the variables after posting to describe the influence of a post, like Lifetime post total reach(numeric)， Lifetime post consumptions(numeric), comments(numeric), likes(numeric) and so on. 
+###We use the variables before posting as predictors to predict the influence of a post after posting. 
+###We also find that there are many variables to evaluate the performance of a post. And we choose Lifetime post consumptions(The number of clicks anywhere in a post) as our target variables.
+###Then we subset our dataset with all predictors and our target variable LifetimePostConsumptions.
+mydata <- data[,c(1,2,3,4,5,6,7,12)]
+summary(mydata)
+```
+#Descriptive statistics
+#a.Describe the data types (numeric vs. categorical) and distributions (you can do this visually or with a package)
+```{r}
+install.packages("psych")
+library(psych)
+library(ggplot2)
+#Bar plots - Post.Month 
+ggplot(mydata, aes(x = factor(mydata$Post.Month),fill=mydata$Post.Month)) +
+       geom_bar(width = 0.7) + coord_polar()
+#Bar plots - Post.Weekday
+ggplot(mydata, aes(x = factor(mydata$Post.Weekday),fill=mydata$Post.Weekday)) +
+  geom_bar(width = 0.7) + coord_polar()
+#Bar plots - Post.Hour
+ggplot(mydata, aes(x = factor(mydata$Post.Hour),fill=mydata$Post.Hour)) +geom_bar(width = 0.7) + coord_polar()
+
+#distribution
+ggplot(data=mydata, aes(mydata$Page.total.likes)) + 
+  geom_histogram(aes(y =..density..), 
+                 col="black", 
+                 fill="skyblue", 
+                 alpha=.2) + geom_density()
+
+```
+#b.Describe the target variable. What are the units?
+
+```{r}
+ggplot(data=mydata, aes(mydata$Lifetime.Post.Consumptions)) + 
+  geom_histogram(aes(y =..density..), 
+                 col="black", 
+                 fill="skyblue", 
+                 alpha=.2) + geom_density()
+
+#The units of Lifetime.Post.Consumptions is the number of clicks anywhere in a post.
+```
+#2.Exploratory data analysis
+#a.Correlations
+```{r}
+library(psych)
+par(mar=c(1,1,1,1))
+pairs.panels(mydata, 
+             method = "spearman", # correlation method
+             hist.col = "#00AFBB",
+             density = TRUE,  # show density plots
+             ellipses = TRUE )# show correlation ellipses
+
+```
+#b.Bivariate plots like scatterplots
+```{r}
+#Page.total.likes vs. Lifetime.Post.Consumptions
+ggplot(mydata, aes(y=Lifetime.Post.Consumptions, x=Page.total.likes, color = Lifetime.Post.Consumptions)) +
+  geom_point(shape = 16, size = 5, show.legend = FALSE, alpha = .4) +
+  theme_minimal() +
+  scale_color_gradient(low = "#4FB0C6", high = "#4F86C6")
+
+```
+#3.Probability concepts 
+```{r}
+#Based on the exploration of  our dataset, we are interested in the relationship between two categorical variables  <Type> and <Paid> and we make a contingency table as follows to calculate probabilities.
+mytable<-ftable(mydata$Paid,mydata$Type)
+prob<-prop.table(mytable)
+prob <-round(prob,2)
+addmargins(prob)
+table<-as.data.frame(addmargins(prob))
+names(table)[1:4]<-c("Link","Photo","Status","Video")
+row.names(table)[1:2]<-c("Notpaid","Paid")
+table
+
+#P(paid)=0.01+0.24+0.02+0.01=0.28
+#P(Photo)=0.61+0.24=0.85
+
+#P(Photo|Paid)=0.24/0.28=0.8571
+#P(Paid|Photo)=0.24/0.85=0.2824
+```
+#4.Chi-square test
+```{r}
+chisq.test(mydata$Type,mydata$Paid,correct = F)
+#From the result, it can be found that p-value is 0.295, which is much greater than 0.05, it indicates that we cannot reject the null hypothesis --- Type of post is related to whether the post is paid.
+
+#I  consider calculating by hand instead of using the chisq.test() function. 
+mytable1<-ftable(mydata$Paid,mydata$Type)
+table1<-as.data.frame(addmargins(mytable1))
+names(table1)[1:4]<-c("Link","Photo","Status","Video")
+row.names(table1)[1:2]<-c("Notpaid","Paid")
+table1
+
+#1)State hypothesis 
+#Null hypothesis : Whether the post is paid or not is unrelated to the type of the post.
+#Alternative hypothesis: Whether the post is paid or not is related to the type of the post.
+
+#2)The Conditions and Test Statistic
+l0 <- 22*360/499
+p0 <- 425*360/499
+s0 <- 45*360/499
+v0 <- 7*360/499
+
+l1 <- 22*139/499
+p1 <- 425*139/499
+s1 <- 45*139/499
+v1 <- 7*139/499
+
+#3)The Calculation
+X2 <-(16-l0)^2/l0+(306-p0)^2/p0+(35-s0)^2/s0+(3-v0)^2/v0+(6-l1)^2/l1+(119-p1)^2/p1+(10-s1)^2/s1+(4-v1)^2/v1
+DF=(4-1)*(2-1)
+
+#4)The P-value and decision in context
+pvalue= 1-pchisq(X2,DF)
+pvalue
+# With calculating by hand instead of using the chisq.test() function, we still cannot reject the null hypothesis---Type of post is related to whether the post is paid.
+
+```
+#5. Data prep
+#a. Missing values
+```{r}
+summary(mydata)
+mydata <- na.omit(mydata)
+summary(mydata)
+```
+#6. Decide on which regression you will use
+```{r}
+#We use multiple linear regression to predict the numeric target variables.
+```
+#7. Proficiency in stepwise regression
+#a. Fit a full model
+```{r}
+#According to the density plot of target variable <Consumption>, the distribution of target overly skewed right. So we transform it into the normal distribution.
+library(car)
+summary(powerTransform(mydata$Lifetime.Post.Consumptions))
+mydata$Lifetime.Post.Consumptions<-mydata$Lifetime.Post.Consumptions^0.0645
+
+full.model<-lm(Lifetime.Post.Consumptions ~.,data=mydata)
+summary(full.model)
+plot(full.model, which=1, col=c("skyblue"))
+plot(density(full.model$residuals))
+#Then based on the density plot of <Lifetime.Post.Consumptions>, it can be seen that the distribution of <Lifetime.Post.Consumptions> is right skewed, which is not corresponded to the assumption: the distribution of target variable should be normally distributed. So we transform our target variable <Lifetime.Post.Consumptions> into normal distribution.
+
+car::vif(full.model)
+#Looking at the result of VIF is shown in (Figure), we find that the VIF value of <Page.total.likes> and <Post.month> are extremely large, which means both of them are highly correlated with other independent variables.So we eliminate the variable <Post.Month>  which  with the highest VIF, and then rerun the VIF
+```
+
+
+```{r}
+vif.fullmodel<-lm(Lifetime.Post.Consumptions ~.-Post.Month ,data=mydata)
+summary(vif.fullmodel)
+car::vif(vif.fullmodel)
+#The result is as follows.(Figure). With all VIF values around 1, we could process our regression.
+```
+#b. Fit a null mode
+```{r}
+null.model1<-lm(Lifetime.Post.Consumptions ~1,data=mydata)
+summary(null.model1)
+```
+#c. Using some form of stepwise regression,fit a reduced model.
+```{r}
+library(MASS)
+stepAIC(vif.fullmodel,direction = "both")
+#We choose variables with the lowest AIC, fit a new reduced model.
+reduced.model<-lm(Lifetime.Post.Consumptions ~ Type+
+                  Category+
+                  Page.total.likes+
+                  Paid,
+                data = mydata)
+summary(reduced.model)
+car::vif(reduced.model)
+```
+#d. Compare the model output and note any trends that you see.  
+```{r}
+#Based on the statistical results of the full model, we find that PostHour17 & PostHour18 are very statistically significant since 5pm and 6pm are off time for most people, they have more time to browse and refresh the pages. The coefficient of 5pm & 6pm are bigger compared to other hours in a day. And whether the post is paid or not is also statistically significant and the coefficient is positive, which means paid advertising is beneficial to the increase click numbers. In addition, the coefficient of <Page.total.likes> is very small compared with coefficient of other predictors.
+
+```
+#8. Model interpretation
+#a. For each model you fit, interpret at least two coefficients. What trends do you see in the model output (parameter estimates, p-values, etc)? 
+```{r}
+#Considering the coefficient of the categorical variables, it shows that companies prefer to post status and video compared with links and photos and they often choose post special offers and contests(category1) rather than production information(cateogory2) and inspiration(cateogory3).
+
+#When the Type of a Post is Photo, its <Lifetime.Post.Consumptions^0.0645> would be 0.1429 higher than that of Link post.
+#when a post belongs to Category 2, its <Lifetime.Post.Consumptions^0.0645> would be 0.02297 lower than that of post belongs to Category 1.    
+
+#Comparing the full model and reduced model, it can be seen that <Page.total.likes> is not significant in the full model, after both stepwise, it becomes very significant in the reduced model. And the adjusted R-square in full model is 0.3336, while the one decreases in reduced model.
+
+```
+#9. Model fit diagnostics for each model you fit, analyze model fit and residuals (MAE, RMSE, R2)
+```{r}
+#Acutual vs. Predicted of full model
+plot(predict(full.model),mydata$Lifetime.Post.Consumptions,xlab = "Predicted",ylab = "Actual",main = "Full Model")
+abline(a=0,b=1)
+```
+
+
+```{r}
+#Confidence level & Prediction level for <Consumptions> and <page.total.likes>
+#We build a 95% confidence interval and prediction interval.
+summary(mydata$Page.total.likes)
+str(mydata$Page.total.likes)
+reg1<-lm(mydata$Lifetime.Post.Consumptions~mydata$Page.total.likes,data=mydata)
+newx1 <- seq(139441, 81370, by=-116.6)
+plot(mydata$Page.total.likes, mydata$Lifetime.Post.Consumptions, xlab="Page.total.likes", ylab="Lifetime.Post.Consumptions", main="Regression of <Consumption> & <Page.total.likes>")
+abline(reg1, col="red")
+conf_interval_1 <- predict(reg1, new.data1=data.frame(Lifetime.Post.Consumptions = newx1), interval="confidence",
+                         level = 0.95)
+lines(newx1, conf_interval_1[,2], col="blue", lty=2)
+lines(newx1, conf_interval_1[,3], col="blue", lty=2)
+
+pred_interval_1 <- predict(reg1, new.data1=data.frame(Lifetime.Post.Consumptions = newx1), interval="prediction",
+                         level = 0.95)
+lines(newx1, pred_interval_1[,2], col="darkgreen", lty=2)
+lines(newx1, pred_interval_1[,3], col="darkgreen", lty=2)
+```
+
+
+```{r}
+#Residual for full model
+library(modelr)
+Model1<-data.frame(
+R2<-rsquare(full.model,mydata),
+RMSE1<-rmse(full.model,mydata),
+MAE1<-mae(full.model,mydata)
+)
+round(Model1,2)
+```
+
+
+```{r}
+#Acutual vs. Predicted of reduced model
+plot(predict(reduced.model),mydata$Lifetime.Post.Consumptions,xlab = "Predicted",ylab = "Actual",main = "Reduced Model")
+abline(a=0,b=1)
+
+#Residual for reduced model
+Model2<-data.frame(
+R2<-rsquare(reduced.model,mydata),
+RMSE1<-rmse(reduced.model,mydata),
+MAE1<-mae(reduced.model,mydata)
+)
+round(Model2,2)
+
+#Both RMSE and MAE are extremely low since we transform our target variable, the R-square of reduced model is lower than the full model.
+
+```
+#10. Model comparison for full model and reduced model (10 points) 
+```{r}
+AIC(full.model,reduced.model)
+BIC(full.model,reduced.model)
+anova(full.model,reduced.model)
+#Comparing AIC & BIC of two models, full model has a lower AIC and reduced model has a lower BIC. 
+#We also compare the fit of models using ANOVA function, the reduced model has a significant result(p-value < 0.05), which means the reduced model is better.
+```
+
